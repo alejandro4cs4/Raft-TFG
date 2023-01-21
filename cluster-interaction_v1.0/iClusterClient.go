@@ -1,8 +1,9 @@
 package main
 
 type IClusterClient interface {
+	closeClient()
 	clearAllClusterData(measureElapsedTime bool)
-	clearClusterDataOneByOne()
-	storeDataInCluster()
+	clearClusterDataOneByOne(exploreDirectory string)
+	storeDataInCluster(exploreDirectory string)
 	listClusterData()
 }

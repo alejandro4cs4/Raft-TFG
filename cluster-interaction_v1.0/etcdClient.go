@@ -1,8 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"errors"
+	"fmt"
+	"log"
+	"os/exec"
+	"strings"
 	"time"
 
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -11,6 +16,10 @@ import (
 type EtcdClient struct {
 	client *clientv3.Client
 }
+
+/*******************/
+/*** CONSTRUCTOR ***/
+/*******************/
 
 func newEtcdClient() IClusterClient {
 	config := clientv3.Config{
@@ -54,7 +63,125 @@ func newEtcdClient() IClusterClient {
 	}
 }
 
-func (etcdCli *EtcdClient) clearAllClusterData(measureElapsedTime bool) {}
-func (etcdCli *EtcdClient) clearClusterDataOneByOne() {}
-func (etcdCli *EtcdClient) storeDataInCluster() {}
-func (etcdCli *EtcdClient) listClusterData() {}
+/*************************/
+/*** INTERFACE METHODS ***/
+/*************************/
+
+func (etcdCli *EtcdClient) closeClient() {
+	etcdCli.client.Close()
+}
+
+func (etcdCli *EtcdClient) clearAllClusterData(measureElapsedTime bool) {
+	var startTime time.Time
+	var elapsedTime time.Duration
+
+	// Start timer
+	if measureElapsedTime {
+		startTime = time.Now()
+	}
+
+	deleteResponse, err := etcdCli.client.Delete(context.Background(), "", clientv3.WithPrefix())
+
+	if err != nil {
+		log.Panicf("Could not delete cluster data: %v\n", err)
+	}
+
+	// Stop timer
+	if measureElapsedTime {
+		elapsedTime = time.Since(startTime)
+	}
+
+	if measureElapsedTime {
+		fmt.Printf("It took %d ms / %.2f sec to wipe cluster data\n", elapsedTime.Milliseconds(), elapsedTime.Seconds())
+	}
+
+	fmt.Printf("Successfully deleted %v keys from etcd cluster\n", deleteResponse.Deleted)
+}
+
+func (etcdCli *EtcdClient) clearClusterDataOneByOne(exploreDirectory string) {
+	cmd := exec.Command("find", exploreDirectory)
+	stdout, err := cmd.StdoutPipe()
+
+	if err != nil {
+		log.Panicf("cmd.StdoutPipe(): %v\n", err)
+	}
+
+	cmd.Start()
+
+	scanner := bufio.NewScanner(stdout)
+
+	// Start timer
+	startTime := time.Now()
+
+	for scanner.Scan() {
+		key := scanner.Text()
+
+		_, err := etcdCli.client.Delete(context.Background(), key)
+
+		if err != nil {
+			log.Panicf("cli.Delete(%v): %v\n", key, err)
+		}
+	}
+
+	// Stop timer
+	elapsedTime := time.Since(startTime)
+
+	cmd.Wait()
+
+	fmt.Printf("It took %d ms / %.2f sec / %.2f min to delete the data one by one from etcd\n", elapsedTime.Milliseconds(), elapsedTime.Seconds(), elapsedTime.Minutes())
+}
+
+func (etcdCli *EtcdClient) storeDataInCluster(exploreDirectory string) {
+	cmd := exec.Command("find", exploreDirectory, "-printf", "%p:%y:%m:%U:%G:%A@:%s:%i\n")
+	stdout, err := cmd.StdoutPipe()
+
+	if err != nil {
+		log.Panicf("cmd.StdoutPipe(): %v\n", err)
+	}
+
+	cmd.Start()
+
+	scanner := bufio.NewScanner(stdout)
+
+	// Start timer
+	startTime := time.Now()
+
+	for scanner.Scan() {
+		key, value, _ := strings.Cut(scanner.Text(), ":")
+
+		_, err := etcdCli.client.Put(context.Background(), key, value)
+
+		if err != nil {
+			log.Panicf("cli.Put(%v, %v): %v\n", key, value, err)
+		}
+	}
+
+	// Stop timer
+	elapsedTime := time.Since(startTime)
+
+	cmd.Wait()
+
+	fmt.Printf("It took %d ms / %.2f sec / %.2f min to store the data in etcd\n", elapsedTime.Milliseconds(), elapsedTime.Seconds(), elapsedTime.Minutes())
+}
+
+func (etcdCli *EtcdClient) listClusterData() {
+	// Start timer
+	getDataStartTime := time.Now()
+
+	getResponse, getErr := etcdCli.client.Get(context.Background(), "", clientv3.WithPrefix())
+
+	if getErr != nil {
+		log.Panicf("cli.Get(): %v\n", getErr)
+	}
+
+	// Stop timer
+	getDataElapsedTime := time.Since(getDataStartTime)
+
+	for index, kv := range getResponse.Kvs {
+		line := fmt.Sprintf("%v. %v - %v\n", index, string(kv.Key[:]), string(kv.Value[:]))
+
+		fmt.Print(line)
+	}
+
+	fmt.Printf("It took %d ms / %.2f sec to get all data stored in etcd (%v entries)\n", getDataElapsedTime.Milliseconds(), getDataElapsedTime.Seconds(), getResponse.Count)
+}

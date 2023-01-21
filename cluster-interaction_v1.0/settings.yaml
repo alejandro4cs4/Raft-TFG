@@ -1,2 +1,2 @@
-clusterType: "tikv"
+clusterType: "etcd"
 exploreDirectory: "/home/alejandroc"
