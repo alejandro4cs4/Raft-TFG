@@ -153,8 +153,6 @@ func (tikvCli *TikvClient) storeDataInCluster() {
 	// Stop timer
 	elapsedTime := time.Since(startTime)
 
-	cmd.Wait()
-
 	fmt.Printf("It took %d ms / %.2f sec / %.2f min to store the data in TiKV\n", elapsedTime.Milliseconds(), elapsedTime.Seconds(), elapsedTime.Minutes())
 }
 

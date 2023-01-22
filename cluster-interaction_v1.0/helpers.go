@@ -7,6 +7,11 @@ import (
 )
 
 func printDataAmount(settings *Settings) {
+	if settings.MaxItemsStore > 0 {
+		fmt.Printf("%d key-value pairs will be stored in %s cluster\n", settings.MaxItemsStore, settings.ClusterType)
+		return
+	}
+
 	numItemsCmd := fmt.Sprintf("find %s | wc -l", settings.ExploreDirectory)
 
 	out, err := exec.Command("bash", "-c", numItemsCmd).Output()
