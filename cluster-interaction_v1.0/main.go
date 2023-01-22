@@ -19,7 +19,7 @@ func main() {
 
 	yaml.Unmarshal(settingsFileContent, &settings)
 
-	clusterClient, err := getClusterClient(settings.ClusterType)
+	clusterClient, err := getClusterClient(&settings)
 	checkError(err)
 
 	defer clusterClient.closeClient()
@@ -55,11 +55,11 @@ func handleCommandInteraction(clusterClient IClusterClient, settings *Settings) 
 			clusterClient.clearAllClusterData(true)
 			break
 		case "2\n":
-			clusterClient.clearClusterDataOneByOne(settings.ExploreDirectory)
+			clusterClient.clearClusterDataOneByOne()
 			break
 		case "3\n":
 			printDataAmount(settings)
-			clusterClient.storeDataInCluster(settings.ExploreDirectory)
+			clusterClient.storeDataInCluster()
 			break
 		case "4\n":
 			clusterClient.listClusterData()

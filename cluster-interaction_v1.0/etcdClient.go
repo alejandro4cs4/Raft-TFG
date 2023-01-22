@@ -15,13 +15,14 @@ import (
 
 type EtcdClient struct {
 	client *clientv3.Client
+	settings *Settings
 }
 
 /*******************/
 /*** CONSTRUCTOR ***/
 /*******************/
 
-func newEtcdClient() IClusterClient {
+func newEtcdClient(settings *Settings) IClusterClient {
 	config := clientv3.Config{
 		Endpoints:   []string{"localhost:2379", "localhost:22379", "localhost:32379"},
 		DialTimeout: 5 * time.Second,
@@ -57,6 +58,7 @@ func newEtcdClient() IClusterClient {
 	case cli := <-cliChan:
 		return &EtcdClient{
 			client: cli,
+			settings: settings,
 		}
 	case <-time.After(6 * time.Second):
 		panic(errors.New("5 seconds timeout exceeded while trying to connect to etcd cluster"))
@@ -98,8 +100,8 @@ func (etcdCli *EtcdClient) clearAllClusterData(measureElapsedTime bool) {
 	fmt.Printf("Successfully deleted %v keys from etcd cluster\n", deleteResponse.Deleted)
 }
 
-func (etcdCli *EtcdClient) clearClusterDataOneByOne(exploreDirectory string) {
-	cmd := exec.Command("find", exploreDirectory)
+func (etcdCli *EtcdClient) clearClusterDataOneByOne() {
+	cmd := exec.Command("find", etcdCli.settings.ExploreDirectory)
 	stdout, err := cmd.StdoutPipe()
 
 	if err != nil {
@@ -131,8 +133,8 @@ func (etcdCli *EtcdClient) clearClusterDataOneByOne(exploreDirectory string) {
 	fmt.Printf("It took %d ms / %.2f sec / %.2f min to delete the data one by one from etcd\n", elapsedTime.Milliseconds(), elapsedTime.Seconds(), elapsedTime.Minutes())
 }
 
-func (etcdCli *EtcdClient) storeDataInCluster(exploreDirectory string) {
-	cmd := exec.Command("find", exploreDirectory, "-printf", "%p:%y:%m:%U:%G:%A@:%s:%i\n")
+func (etcdCli *EtcdClient) storeDataInCluster() {
+	cmd := exec.Command("find", etcdCli.settings.ExploreDirectory, "-printf", "%p:%y:%m:%U:%G:%A@:%s:%i\n")
 	stdout, err := cmd.StdoutPipe()
 
 	if err != nil {
@@ -146,6 +148,8 @@ func (etcdCli *EtcdClient) storeDataInCluster(exploreDirectory string) {
 	// Start timer
 	startTime := time.Now()
 
+	var numStoredItems int64
+
 	for scanner.Scan() {
 		key, value, _ := strings.Cut(scanner.Text(), ":")
 
@@ -153,6 +157,12 @@ func (etcdCli *EtcdClient) storeDataInCluster(exploreDirectory string) {
 
 		if err != nil {
 			log.Panicf("cli.Put(%v, %v): %v\n", key, value, err)
+		}
+
+		numStoredItems++
+
+		if etcdCli.settings.MaxItemsStore > 0 && numStoredItems == etcdCli.settings.MaxItemsStore {
+			break
 		}
 	}
 

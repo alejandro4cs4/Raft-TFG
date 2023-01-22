@@ -1,2 +1,3 @@
 clusterType: "etcd"
 exploreDirectory: "/home/alejandroc"
+maxItemsStore: 50000

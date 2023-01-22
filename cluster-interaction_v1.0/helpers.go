@@ -15,5 +15,5 @@ func printDataAmount(settings *Settings) {
 		log.Panicf("exec.Command(find %s | wc -l): %v\n", settings.ExploreDirectory, err)
 	}
 
-	fmt.Printf("%v key-value pairs will be stored in %s cluster\n", settings.ClusterType, string(out[:len(out)-1]))
+	fmt.Printf("%v key-value pairs will be stored in %s cluster\n", string(out[:len(out)-1]), settings.ClusterType)
 }

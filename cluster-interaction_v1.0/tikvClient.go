@@ -16,13 +16,14 @@ import (
 
 type TikvClient struct {
 	client *rawkv.Client
+	settings *Settings
 }
 
 /*******************/
 /*** CONSTRUCTOR ***/
 /*******************/
 
-func newTikvClient() IClusterClient {
+func newTikvClient(settings *Settings) IClusterClient {
 	errChan := make(chan error, 1)
 	cliChan := make(chan *rawkv.Client, 1)
 
@@ -43,6 +44,7 @@ func newTikvClient() IClusterClient {
 	case cli := <-cliChan:
 		return &TikvClient{
 			client: cli,
+			settings: settings,
 		}
 	case <-time.After(6 * time.Second):
 		panic(errors.New("5 seconds timeout exceeded while trying to connect to TiKV cluster"))
@@ -82,8 +84,8 @@ func (tikvCli *TikvClient) clearAllClusterData(measureElapsedTime bool) {
 	}
 }
 
-func (tikvCli *TikvClient) clearClusterDataOneByOne(exploreDirectory string) {
-	cmd := exec.Command("find", exploreDirectory)
+func (tikvCli *TikvClient) clearClusterDataOneByOne() {
+	cmd := exec.Command("find", tikvCli.settings.ExploreDirectory)
 	stdout, err := cmd.StdoutPipe()
 
 	if err != nil {
@@ -115,8 +117,8 @@ func (tikvCli *TikvClient) clearClusterDataOneByOne(exploreDirectory string) {
 	fmt.Printf("It took %d ms / %.2f sec / %.2f min to delete the data one by one from TiKV\n", elapsedTime.Milliseconds(), elapsedTime.Seconds(), elapsedTime.Minutes())
 }
 
-func (tikvCli *TikvClient) storeDataInCluster(exploreDirectory string) {
-	cmd := exec.Command("find", exploreDirectory, "-printf", "%p:%y:%m:%U:%G:%A@:%s:%i\n")
+func (tikvCli *TikvClient) storeDataInCluster() {
+	cmd := exec.Command("find", tikvCli.settings.ExploreDirectory, "-printf", "%p:%y:%m:%U:%G:%A@:%s:%i\n")
 	stdout, err := cmd.StdoutPipe()
 
 	if err != nil {
@@ -130,6 +132,8 @@ func (tikvCli *TikvClient) storeDataInCluster(exploreDirectory string) {
 	// Start timer
 	startTime := time.Now()
 
+	var numStoredItems int64
+
 	for scanner.Scan() {
 		key, value, _ := strings.Cut(scanner.Text(), ":")
 
@@ -137,6 +141,12 @@ func (tikvCli *TikvClient) storeDataInCluster(exploreDirectory string) {
 
 		if err != nil {
 			log.Panicf("cli.Put(%v, %v): %v\n", key, value, err)
+		}
+
+		numStoredItems++
+
+		if tikvCli.settings.MaxItemsStore > 0 && numStoredItems == tikvCli.settings.MaxItemsStore {
+			break
 		}
 	}
 

@@ -2,13 +2,13 @@ package main
 
 import "fmt"
 
-func getClusterClient(clusterType string) (IClusterClient, error) {
-	if clusterType == "etcd" {
-		return newEtcdClient(), nil
+func getClusterClient(settings *Settings) (IClusterClient, error) {
+	if settings.ClusterType == "etcd" {
+		return newEtcdClient(settings), nil
 	}
 
-	if clusterType == "tikv" {
-		return newTikvClient(), nil
+	if settings.ClusterType == "tikv" {
+		return newTikvClient(settings), nil
 	}
 
 	return nil, fmt.Errorf("The specified cluster type is not supported\n")
