@@ -82,7 +82,8 @@ func (etcdCli *EtcdClient) clearAllClusterData(measureElapsedTime bool) {
 		startTime = time.Now()
 	}
 
-	deleteResponse, err := etcdCli.client.Delete(context.Background(), "", clientv3.WithPrefix())
+	deleteResponse, err := etcdCli.client.Delete(context.Background(), "", clientv3.WithFromKey())
+	// deleteResponse, err := etcdCli.client.Delete(context.Background(), "", clientv3.WithPrefix())
 
 	if err != nil {
 		log.Panicf("Could not delete cluster data: %v\n", err)
