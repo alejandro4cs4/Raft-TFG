@@ -187,3 +187,5 @@ func (tikvCli *TikvClient) listClusterData() {
 
 	fmt.Printf("It took %d ms / %.2f sec to get all data stored in TiKV (%v entries)\n", getDataElapsedTime.Milliseconds(), getDataElapsedTime.Seconds(), keysCount)
 }
+
+func (tikvCli *TikvClient) getMetrics() {}
