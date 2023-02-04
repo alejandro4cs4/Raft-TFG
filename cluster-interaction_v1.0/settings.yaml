@@ -1,3 +1,4 @@
 clusterType: "etcd"
-exploreDirectory: "/usr/"
+exploreDirectory: "/home/"
 maxItemsStore: 100000
+etcdMetrics: true

@@ -6,4 +6,5 @@ type IClusterClient interface {
 	clearClusterDataOneByOne()
 	storeDataInCluster()
 	listClusterData()
+	getMetrics()
 }

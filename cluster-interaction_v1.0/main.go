@@ -9,7 +9,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const PROGRAM_INFO = "\nType the number of the option you want to execute:\n\t1. Clear all cluster data at once\n\t2. Clear cluster data one by one\n\t3. Store all data in cluster\n\t4. List all data in cluster\n\t5. Exit the program\n\n"
+const PROGRAM_INFO = "\nType the number of the option you want to execute:\n\t1. Clear all cluster data at once\n\t2. Clear cluster data one by one\n\t3. Store all data in cluster\n\t4. List all data in cluster\n\t5. Generate metrics\n\t6. Exit the program\n\n"
 
 func main() {
 	var settings Settings
@@ -33,7 +33,7 @@ func handleCommandInteraction(clusterClient IClusterClient, settings *Settings) 
 	// Read user input
 	buf := bufio.NewReader(os.Stdin)
 
-	fmt.Print(PROGRAM_INFO)
+	fmt.Print(PROGRAM_INFO);
 
 	for {
 		fmt.Print("> ")
@@ -44,7 +44,7 @@ func handleCommandInteraction(clusterClient IClusterClient, settings *Settings) 
 			log.Fatalln("Error reading user input")
 		}
 
-		if string(input[:]) == "5\n" {
+		if string(input[:]) == "6\n" {
 			break
 		}
 
@@ -64,6 +64,9 @@ func handleCommandInteraction(clusterClient IClusterClient, settings *Settings) 
 		case "4\n":
 			clusterClient.listClusterData()
 			break
+		case "5\n":
+			clusterClient.getMetrics()
+			break;
 		default:
 			fmt.Printf("Unknown option\n%v", PROGRAM_INFO)
 		}
