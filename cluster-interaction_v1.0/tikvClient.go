@@ -188,4 +188,6 @@ func (tikvCli *TikvClient) listClusterData() {
 	fmt.Printf("It took %d ms / %.2f sec to get all data stored in TiKV (%v entries)\n", getDataElapsedTime.Milliseconds(), getDataElapsedTime.Seconds(), keysCount)
 }
 
-func (tikvCli *TikvClient) getMetrics() {}
+func (tikvCli *TikvClient) getMetrics() {
+	fmt.Println("Tikv metrics functionallity has not been implemented yet")
+}

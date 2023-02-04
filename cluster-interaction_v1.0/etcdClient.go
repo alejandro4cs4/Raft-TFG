@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -15,7 +14,6 @@ import (
 	"time"
 
 	grpcprom "github.com/grpc-ecosystem/go-grpc-prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc"
 )
@@ -211,26 +209,25 @@ func (etcdCli *EtcdClient) listClusterData() {
 
 func (etcdCli *EtcdClient) getMetrics() {
 	// Listen for all Prometheus metrics
-	ln, err := net.Listen("tcp", ":0")
-	if err != nil {
-		log.Panicf("net.Listen(): %v\n", err)
-	}
+	// ln, err := net.Listen("tcp", ":2379")
+	// if err != nil {
+	// 	log.Panicf("net.Listen(): %v\n", err)
+	// }
 
-	donec := make(chan struct{})
+	// donec := make(chan struct{})
 
-	go func() {
-		defer close(donec)
-		http.Serve(ln, promhttp.Handler())
-	}()
+	// go func() {
+	// 	defer close(donec)
+	// 	http.Serve(ln, promhttp.Handler())
+	// }()
 
-	defer func() {
-		ln.Close()
-		<-donec
-	}()
+	// defer func() {
+	// 	ln.Close()
+	// 	<-donec
+	// }()
 
-	// Make an HTTP request to fetch all Prometheus metrics
-	url := "http://" + ln.Addr().String() + "/metrics"
-	fmt.Printf("URL: %s\n", url)
+	// Make an HTTP request to fetch etcd metrics
+	url := "http://localhost:2379/metrics"
 
 	resp, err := http.Get(url)
 	if err != nil {
