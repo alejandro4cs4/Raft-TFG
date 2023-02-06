@@ -1,4 +1,4 @@
-clusterType: "etcd"
-exploreDirectory: "/home/"
+clusterType: "tikv"
+exploreDirectory: "/usr/"
 maxItemsStore: 100000
 etcdMetrics: true
