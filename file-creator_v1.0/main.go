@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	uuid "github.com/google/uuid"
 	"gopkg.in/yaml.v3"
 
 	metadataclient "Raft-TFG/file-creator_v1.0/metadata-client"
@@ -31,14 +32,19 @@ func main() {
 	log.Default().Printf("Connected to %s metadata storage successfully\n", settings.MetadataType)
 
 	// Connect to object storage
-	// storageClient, err := storageclient.GetStorageClient(&settings)
-	_, err = storageclient.GetStorageClient(&settings)
+	storageClient, err := storageclient.GetStorageClient(&settings)
 	checkError(err)
 
 	log.Default().Printf("Connected to %s object storage successfully\n", settings.StorageType)
 
 	// Get new file path
-	handleNewFilePath()
+	newFilePath := handleNewFilePath()
+
+	// Create file
+	createFile(newFilePath)
+
+	// Store file
+	storeFile(metadataClient, storageClient, newFilePath)
 }
 
 func getSettings() (settings settings.Settings) {
@@ -50,8 +56,8 @@ func getSettings() (settings settings.Settings) {
 	return
 }
 
-func handleNewFilePath() {
-	newFilePath := getNewFilePath(enterPathMessage)
+func handleNewFilePath() (newFilePath string) {
+	newFilePath = getNewFilePath(enterPathMessage)
 
 	for {
 		doesFileExist := fileExists(newFilePath)
@@ -63,6 +69,8 @@ func handleNewFilePath() {
 
 		break
 	}
+
+	return
 }
 
 func getNewFilePath(consoleMessage string) (spaceTrimmedNewFilePath string) {
@@ -90,6 +98,23 @@ func fileExists(filePath string) bool {
 	}
 
 	return true
+}
+
+func createFile(newFilePath string) {
+	filePtr, err := os.Create(newFilePath)
+	checkError(err)
+
+	defer filePtr.Close()
+}
+
+func storeFile(metadataCli metadataclient.IMetadataClient, storageCli storageclient.IStorageClient, newFilePath string) {
+	objectName := uuid.New().String()
+
+	metadataCli.StoreKeyValue(newFilePath, objectName)
+
+	storageCli.StoreObject(objectName, newFilePath)
+
+	fmt.Println("File stored successfully")
 }
 
 func checkError(e error) {

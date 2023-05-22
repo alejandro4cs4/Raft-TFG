@@ -2,5 +2,5 @@ package metadataclient
 
 type IMetadataClient interface {
 	CloseClient()
-	StoreKeyValue()
+	StoreKeyValue(key string, value string)
 }

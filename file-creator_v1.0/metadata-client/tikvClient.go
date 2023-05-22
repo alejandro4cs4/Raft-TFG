@@ -48,6 +48,6 @@ func (tikvCli *TikvClient) CloseClient() {
 	tikvCli.client.Close()
 }
 
-func (tikvCli *TikvClient) StoreKeyValue() {
+func (tikvCli *TikvClient) StoreKeyValue(key string, value string) {
 
 }

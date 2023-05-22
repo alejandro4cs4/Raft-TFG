@@ -62,6 +62,10 @@ func (etcdCli *EtcdClient) CloseClient() {
 	etcdCli.client.Close()
 }
 
-func (etcdCli *EtcdClient) StoreKeyValue() {
+func (etcdCli *EtcdClient) StoreKeyValue(key string, value string) {
+	_, err := etcdCli.client.Put(context.Background(), key, value)
 
+	if err != nil {
+		panic(err)
+	}
 }

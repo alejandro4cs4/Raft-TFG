@@ -1,6 +1,5 @@
 package storageclient
 
 type IStorageClient interface {
-	CloseClient()
-	StoreObject()
+	StoreObject(objectName string, filePath string)
 }

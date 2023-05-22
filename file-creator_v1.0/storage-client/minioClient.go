@@ -12,6 +12,10 @@ import (
 	"Raft-TFG/file-creator_v1.0/settings"
 )
 
+const (
+	testBucket string = "testbucket"
+)
+
 type MinioClient struct {
 	client   *minio.Client
 	settings *settings.Settings
@@ -69,9 +73,15 @@ func newMinioclient(settings *settings.Settings) IStorageClient {
 	}
 }
 
-func (minioCli *MinioClient) CloseClient() {}
+func (minioCli *MinioClient) StoreObject(objectName string, filePath string) {
+	ctx := context.Background()
 
-func (minioCli *MinioClient) StoreObject() {}
+	_, err := minioCli.client.FPutObject(ctx, testBucket, objectName, filePath, minio.PutObjectOptions{})
+
+	if err != nil {
+		panic(err)
+	}
+}
 
 func createBucket(minioClient *minio.Client, bucketName string) {
 	ctx := context.Background()
@@ -89,16 +99,4 @@ func createBucket(minioClient *minio.Client, bucketName string) {
 	} else {
 		log.Printf("Successfully created %s bucket\n", bucketName)
 	}
-}
-
-func uploadObject(minioClient *minio.Client, bucketName, objectName, filePath, contentType string) {
-	ctx := context.Background()
-
-	info, err := minioClient.FPutObject(ctx, bucketName, objectName, filePath, minio.PutObjectOptions{ContentType: contentType})
-
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	log.Printf("Successfully uploaded %s of size %d\n", objectName, info.Size)
 }
