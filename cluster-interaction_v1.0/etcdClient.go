@@ -19,7 +19,7 @@ import (
 )
 
 type EtcdClient struct {
-	client *clientv3.Client
+	client   *clientv3.Client
 	settings *Settings
 }
 
@@ -29,7 +29,8 @@ type EtcdClient struct {
 
 func newEtcdClient(settings *Settings) IClusterClient {
 	config := clientv3.Config{
-		Endpoints:   []string{"localhost:2379", "localhost:22379", "localhost:32379"},
+		// Endpoints:   []string{"localhost:2379", "localhost:22379", "localhost:32379"},
+		Endpoints:   []string{"localhost:23790"},
 		DialTimeout: 5 * time.Second,
 	}
 
@@ -69,7 +70,7 @@ func newEtcdClient(settings *Settings) IClusterClient {
 		panic(err)
 	case cli := <-cliChan:
 		return &EtcdClient{
-			client: cli,
+			client:   cli,
 			settings: settings,
 		}
 	case <-time.After(6 * time.Second):

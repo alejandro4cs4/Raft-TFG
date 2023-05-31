@@ -1,4 +1,4 @@
-clusterType: "tikv"
+clusterType: "etcd"
 exploreDirectory: "/usr/"
 maxItemsStore: 100000
-etcdMetrics: true
+etcdMetrics: false
