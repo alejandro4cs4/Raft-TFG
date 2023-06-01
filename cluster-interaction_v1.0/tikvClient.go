@@ -15,7 +15,7 @@ import (
 )
 
 type TikvClient struct {
-	client *rawkv.Client
+	client   *rawkv.Client
 	settings *Settings
 }
 
@@ -43,7 +43,7 @@ func newTikvClient(settings *Settings) IClusterClient {
 		panic(err)
 	case cli := <-cliChan:
 		return &TikvClient{
-			client: cli,
+			client:   cli,
 			settings: settings,
 		}
 	case <-time.After(6 * time.Second):
@@ -162,21 +162,25 @@ func (tikvCli *TikvClient) listClusterData() {
 
 	keysCount := 0
 
-	keys, _, getErr := tikvCli.client.Scan(context.Background(), nil, nil, rawkv.MaxRawKVScanLimit)
+	keys, values, getErr := tikvCli.client.Scan(context.Background(), nil, nil, rawkv.MaxRawKVScanLimit)
 
 	if getErr != nil {
 		log.Panicf("cli.Scan(): %v\n", getErr)
 	}
 
+	printListedData(keys, values, keysCount)
+
 	retrievedKeys := len(keys)
 	keysCount += len(keys)
 
 	for retrievedKeys == rawkv.MaxRawKVScanLimit {
-		keys, _, getErr = tikvCli.client.Scan(context.Background(), keys[len(keys)-1], nil, rawkv.MaxRawKVScanLimit)
+		keys, values, getErr = tikvCli.client.Scan(context.Background(), keys[len(keys)-1], nil, rawkv.MaxRawKVScanLimit)
 
 		if getErr != nil {
 			log.Panicf("cli.Scan(): %v\n", getErr)
 		}
+
+		printListedData(keys, values, keysCount)
 
 		retrievedKeys = len(keys)
 		keysCount += retrievedKeys - 1
@@ -186,6 +190,14 @@ func (tikvCli *TikvClient) listClusterData() {
 	getDataElapsedTime := time.Since(getDataStartTime)
 
 	fmt.Printf("It took %d ms / %.2f sec to get all data stored in TiKV (%v entries)\n", getDataElapsedTime.Milliseconds(), getDataElapsedTime.Seconds(), keysCount)
+}
+
+func printListedData(keys, values [][]byte, offset int) {
+	for index, key := range keys {
+		line := fmt.Sprintf("%v. %v - %v\n", index+offset, string(key[:]), string(values[index][:]))
+
+		fmt.Print(line)
+	}
 }
 
 func (tikvCli *TikvClient) getMetrics() {

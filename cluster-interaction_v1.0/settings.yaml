@@ -1,4 +1,4 @@
 clusterType: "etcd"
 exploreDirectory: "/usr/"
-maxItemsStore: 100000
+maxItemsStore: 50000
 etcdMetrics: false
