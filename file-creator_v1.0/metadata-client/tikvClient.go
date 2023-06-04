@@ -51,3 +51,9 @@ func (tikvCli *TikvClient) CloseClient() {
 func (tikvCli *TikvClient) StoreKeyValue(key string, value string) {
 
 }
+
+func (tikvCli *TikvClient) GetByKey(key string) MetadataClientGetResponse {
+	return MetadataClientGetResponse{
+		Count: 0,
+	}
+}

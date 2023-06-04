@@ -23,8 +23,8 @@ type MinioClient struct {
 
 func newMinioclient(settings *settings.Settings) IStorageClient {
 	endpoint := "127.0.0.1:9000"
-	accessKeyID := "b24ih9BtvgC3PXNA"
-	secretAccessKey := "PgsCwXjqbx3J4kydzUrmkYlymaSLN8W1"
+	accessKeyID := "wqMjVNsTzs5p5LK4"
+	secretAccessKey := "MXC7NaGj2SejJYDlbZd5SRq8kEC8Hc1V"
 	useSSL := false
 
 	config := minio.Options{

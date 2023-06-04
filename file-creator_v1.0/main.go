@@ -18,6 +18,7 @@ import (
 const (
 	enterPathMessage string = "Enter absolute path for the new file:\n> "
 	retryPathMessage        = "\nThe file already exists, please try with another path:\n> "
+	rootDirectoryKey        = "nil_nil"
 )
 
 func main() {
@@ -35,7 +36,7 @@ func main() {
 	storageClient, err := storageclient.GetStorageClient(&settings)
 	checkError(err)
 
-	log.Default().Printf("Connected to %s object storage successfully\n", settings.StorageType)
+	log.Default().Printf("Connected to %s object storage successfully\n\n", settings.StorageType)
 
 	// Get new file path
 	newFilePath := handleNewFilePath()
@@ -108,13 +109,60 @@ func createFile(newFilePath string) {
 }
 
 func storeFile(metadataCli metadataclient.IMetadataClient, storageCli storageclient.IStorageClient, newFilePath string) {
-	objectName := uuid.New().String()
+	routeComponents := strings.Split(newFilePath, "/")
 
-	metadataCli.StoreKeyValue(newFilePath, objectName)
+	lastParentDirectoryUUID := storeDirectoryHierarchy(metadataCli, routeComponents)
+
+	// Store file itself
+	objectName := uuid.New().String()
+	metadataFileKey := strings.Join([]string{lastParentDirectoryUUID, routeComponents[len(routeComponents)-1]}, "_")
+	metadataFileValue := strings.Join([]string{getFileType(len(routeComponents)-1, len(routeComponents)), objectName}, "_")
+
+	metadataCli.StoreKeyValue(metadataFileKey, metadataFileValue)
 
 	storageCli.StoreObject(objectName, newFilePath)
 
 	fmt.Println("File stored successfully")
+}
+
+func storeDirectoryHierarchy(metadataCli metadataclient.IMetadataClient, routeComponents []string) string {
+	var parentDirectoryUUID string
+
+	for index, routeComponentName := range routeComponents[0 : len(routeComponents)-1] {
+		metadataKey := getMetadataKey(routeComponentName, parentDirectoryUUID)
+
+		getResponse := metadataCli.GetByKey(metadataKey)
+
+		if getResponse.Count == 0 {
+			objectName := uuid.New().String()
+
+			metadataCli.StoreKeyValue(metadataKey, strings.Join([]string{getFileType(index, len(routeComponents)), objectName}, "_"))
+
+			parentDirectoryUUID = objectName
+
+			continue
+		}
+
+		parentDirectoryUUID = strings.Split(getResponse.Value, "_")[1]
+	}
+
+	return parentDirectoryUUID
+}
+
+func getMetadataKey(rawName string, parentUUID ...string) string {
+	if rawName == "" {
+		return rootDirectoryKey
+	}
+
+	return strings.Join([]string{parentUUID[0], rawName}, "_")
+}
+
+func getFileType(routeComponentIndex, routeComponentCount int) string {
+	if routeComponentIndex < routeComponentCount {
+		return "D"
+	}
+
+	return "F"
 }
 
 func checkError(e error) {

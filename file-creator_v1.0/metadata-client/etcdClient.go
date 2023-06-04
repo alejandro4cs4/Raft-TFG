@@ -17,7 +17,7 @@ type EtcdClient struct {
 
 func newEtcdClient(settings *settings.Settings) IMetadataClient {
 	config := clientv3.Config{
-		Endpoints:   []string{"localhost:2379", "localhost:22379", "localhost:32379"},
+		Endpoints:   []string{"localhost:23790"},
 		DialTimeout: 5 * time.Second,
 	}
 
@@ -67,5 +67,29 @@ func (etcdCli *EtcdClient) StoreKeyValue(key string, value string) {
 
 	if err != nil {
 		panic(err)
+	}
+}
+
+func (etcdCli *EtcdClient) GetByKey(key string) MetadataClientGetResponse {
+	response, err := etcdCli.client.Get(context.Background(), key)
+
+	checkError(err)
+
+	if response.Count == 0 {
+		return MetadataClientGetResponse{
+			Count: response.Count,
+		}
+	}
+
+	return MetadataClientGetResponse{
+		Count: response.Count,
+		Key:   string(response.Kvs[0].Key),
+		Value: string(response.Kvs[0].Value),
+	}
+}
+
+func checkError(e error) {
+	if e != nil {
+		panic(e)
 	}
 }
