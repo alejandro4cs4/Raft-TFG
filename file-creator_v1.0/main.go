@@ -158,7 +158,7 @@ func getMetadataKey(rawName string, parentUUID ...string) string {
 }
 
 func getFileType(routeComponentIndex, routeComponentCount int) string {
-	if routeComponentIndex < routeComponentCount {
+	if routeComponentIndex < routeComponentCount-1 {
 		return "D"
 	}
 
