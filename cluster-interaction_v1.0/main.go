@@ -33,7 +33,7 @@ func handleCommandInteraction(clusterClient IClusterClient, settings *Settings) 
 	// Read user input
 	buf := bufio.NewReader(os.Stdin)
 
-	fmt.Print(PROGRAM_INFO);
+	fmt.Print(PROGRAM_INFO)
 
 	for {
 		fmt.Print("> ")
@@ -66,7 +66,7 @@ func handleCommandInteraction(clusterClient IClusterClient, settings *Settings) 
 			break
 		case "5\n":
 			clusterClient.getMetrics()
-			break;
+			break
 		default:
 			fmt.Printf("Unknown option\n%v", PROGRAM_INFO)
 		}
