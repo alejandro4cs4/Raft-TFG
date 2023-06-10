@@ -1,6 +1,6 @@
 package globals
 
 type Openfd struct {
-	name       string
-	descriptor int
+	Name string
+	Uuid string
 }

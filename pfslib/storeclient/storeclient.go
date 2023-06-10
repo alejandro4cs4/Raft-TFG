@@ -61,7 +61,7 @@ func GetMinioClient() *minio.Client {
 		panic(errors.New(panicMsg))
 	case cli := <-cliChan:
 		return cli
-	case <-time.After(6 * time.Second):
+	case <-time.After(5 * time.Second):
 		panic(errors.New("[pfslib]: 5 seconds timeout exceeded while trying to connect to MinIO object storage"))
 	}
 }
