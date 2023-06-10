@@ -7,6 +7,6 @@ import (
 func main() {
 	pfslib.PfsInit()
 
-	pfslib.PfsOpen("/home/alejandroc/desktop")
+	pfslib.PfsOpen("/home/alejandroc/test/test.txt")
 
 }

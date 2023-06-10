@@ -3,6 +3,7 @@ package pfslib
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"strings"
 
@@ -94,7 +95,7 @@ func PfsOpen(pathname string) (int, error) {
 			return -1, errors.New("No such file or directory")
 		}
 
-		currentComponentValue := string(getResponse.Kvs[0].Value)
+		currentComponentValue = string(getResponse.Kvs[0].Value)
 		parentDirectoryUuid = strings.Split(currentComponentValue, "_")[1]
 	}
 
@@ -115,6 +116,8 @@ func PfsOpen(pathname string) (int, error) {
 		Name: pathComponents[len(pathComponents)-1],
 		Uuid: requestedFileUuid,
 	})
+
+	fmt.Printf("File opened successfully\nOpenfds: %+v\n", globals.Openfds)
 
 	// Return openfds index for the recently opened file
 	return len(globals.Openfds) - 1, nil
