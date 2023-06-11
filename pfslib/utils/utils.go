@@ -19,9 +19,7 @@ func ReadSettings() {
 }
 
 func GetAbsolutePath(pathname string) string {
-
-	evaluatedPath, _ := filepath.EvalSymlinks(pathname)
-	absolutePath, _ := filepath.Abs(evaluatedPath)
+	absolutePath, _ := filepath.Abs(pathname)
 
 	return absolutePath
 }

@@ -43,15 +43,8 @@ func PfsInit() {
 	storeClient = storeclient.GetMinioClient()
 	log.Default().Printf("[pfslib]: Connected to MinIO object storage successfully")
 
-	// Init openfds table
-	initOpenfds()
-
 	// Init root directory
 	initRoot()
-}
-
-func initOpenfds() {
-	globals.Openfds = []globals.Openfd{}
 }
 
 func initRoot() {
@@ -80,6 +73,7 @@ func PfsOpen(pathname string) (int, error) {
 	pathComponents := strings.Split(absolutePath, "/")
 	parentDirectoryUuid := RootDirectoryUuid
 	var currentComponentValue string
+	newFd := -1
 
 	for index, pathComponent := range pathComponents {
 		mappedName := utils.MapRouteComponentName(pathComponent)
@@ -112,24 +106,56 @@ func PfsOpen(pathname string) (int, error) {
 	requestedFileUuid := strings.Split(currentComponentValue, "_")[1]
 
 	// Look for a free entry in openfds table and store the file UUID
-	globals.Openfds = append(globals.Openfds, globals.Openfd{
-		Name: pathComponents[len(pathComponents)-1],
-		Uuid: requestedFileUuid,
-	})
+	for index, openfd := range globals.Openfds {
+		if openfd == nil {
+			newFd = index
+			break
+		}
+	}
+
+	if newFd == -1 {
+		printOpenOutOfMemory()
+		return -1, errors.New("Out of memory")
+	}
+
+	globals.Openfds[newFd] = &globals.Openfd{
+		Name:   pathComponents[len(pathComponents)-1],
+		Uuid:   requestedFileUuid,
+		Offset: 0,
+	}
 
 	fmt.Printf("File opened successfully\nOpenfds: %+v\n", globals.Openfds)
 
 	// Return openfds index for the recently opened file
-	return len(globals.Openfds) - 1, nil
+	return newFd, nil
 }
 
-func printOpenNotFound(pathComponents []string) {
-	pathnameNotFound := strings.Join(pathComponents, "/")
+// Tries to read
+func PfsRead(fileDescriptor, bytesToRead int) ([]byte, error) {
+	if fileDescriptor < 0 || fileDescriptor > globals.OpenfdsMaxSize {
+		printReadInvalidDescriptor(fileDescriptor)
+		return nil, errors.New("Invalid descriptor")
+	}
 
-	log.Default().Printf("[pfslib]: PfsOpen(): no such file or directory \"%s\"\n", pathnameNotFound)
+	openDescriptor := globals.Openfds[fileDescriptor]
 
-}
+	if openDescriptor == nil {
+		printReadNotOpenedDescriptor(fileDescriptor)
+		return nil, errors.New("No file associated to the specified descriptor")
+	}
 
-func printOpenNotRegular(absolutePath string) {
-	log.Default().Printf("[pfslib]: PfsOpen(): \"%s\" is not a regular file\n", absolutePath)
+	objectToReadUuid := openDescriptor.Uuid
+
+	minioObject, err := storeClient.GetObject(context.Background(), globals.MinioBucket, objectToReadUuid, minio.GetObjectOptions{})
+
+	utils.CheckError(err)
+
+	defer minioObject.Close()
+
+	buffer := make([]byte, bytesToRead)
+	_, err = minioObject.ReadAt(buffer, openDescriptor.Offset)
+
+	utils.CheckError(err)
+
+	return buffer, nil
 }

@@ -4,5 +4,10 @@ import (
 	"raft-tfg.com/alejandroc/pfslib/settings"
 )
 
+const (
+	OpenfdsMaxSize int    = 128
+	MinioBucket    string = "testbucket"
+)
+
 var PfsSettings settings.PfsSettings
-var Openfds []Openfd
+var Openfds [OpenfdsMaxSize]*Openfd
