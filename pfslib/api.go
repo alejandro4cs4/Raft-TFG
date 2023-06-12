@@ -131,17 +131,17 @@ func PfsOpen(pathname string) (int, error) {
 }
 
 // Tries to read
-func PfsRead(fileDescriptor, bytesToRead int) ([]byte, error) {
+func PfsRead(fileDescriptor int, buffer []byte) (int, error) {
 	if fileDescriptor < 0 || fileDescriptor > globals.OpenfdsMaxSize {
 		printReadInvalidDescriptor(fileDescriptor)
-		return nil, errors.New("Invalid descriptor")
+		return 0, errors.New("Invalid descriptor")
 	}
 
 	openDescriptor := globals.Openfds[fileDescriptor]
 
 	if openDescriptor == nil {
 		printReadNotOpenedDescriptor(fileDescriptor)
-		return nil, errors.New("No file associated to the specified descriptor")
+		return 0, errors.New("No file associated to the specified descriptor")
 	}
 
 	objectToReadUuid := openDescriptor.Uuid
@@ -152,10 +152,9 @@ func PfsRead(fileDescriptor, bytesToRead int) ([]byte, error) {
 
 	defer minioObject.Close()
 
-	buffer := make([]byte, bytesToRead)
-	_, err = minioObject.ReadAt(buffer, openDescriptor.Offset)
+	bytesRead, err := minioObject.ReadAt(buffer, openDescriptor.Offset)
 
 	utils.CheckError(err)
 
-	return buffer, nil
+	return bytesRead, nil
 }

@@ -11,8 +11,9 @@ func main() {
 
 	fd, _ := pfslib.PfsOpen("/home/alejandroc/test/test.txt")
 
-	buffer, _ := pfslib.PfsRead(fd, 100)
+	buffer := make([]byte, 100)
+	bytesRead, _ := pfslib.PfsRead(fd, buffer)
 
-	fmt.Printf("Se ha leido:\n%s\n", string(buffer))
+	fmt.Printf("Se ha leido %d bytes\nEl contenido es:\n%s\n", bytesRead, string(buffer))
 
 }
