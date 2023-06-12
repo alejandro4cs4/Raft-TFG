@@ -30,6 +30,10 @@ const (
 var metaClient *clientv3.Client
 var storeClient *minio.Client
 
+type PfsFile struct {
+	*globals.Openfd
+}
+
 func PfsInit() {
 	utils.ReadSettings()
 
@@ -127,18 +131,22 @@ func PfsOpen(pathname string) (int, error) {
 	return newFd, nil
 }
 
-func PfsClose(fileDescriptor int) error {
-	if fileDescriptor < 0 || fileDescriptor > globals.OpenfdsMaxSize {
-		printInvalidDescriptor(fileDescriptor, "Close")
-		return errors.New("Invalid descriptor")
-	}
-
-	globals.Openfds[fileDescriptor] = nil
-
-	log.Default().Printf("[pfslib]: PfsClose(): file associated to descriptor \"%d\" closed successfully\n", fileDescriptor)
-
+func (pfsf *PfsFile) Close() error {
 	return nil
 }
+
+// func PfsClose(fileDescriptor int) error {
+// 	if fileDescriptor < 0 || fileDescriptor > globals.OpenfdsMaxSize {
+// 		printInvalidDescriptor(fileDescriptor, "Close")
+// 		return errors.New("Invalid descriptor")
+// 	}
+
+// 	globals.Openfds[fileDescriptor] = nil
+
+// 	log.Default().Printf("[pfslib]: PfsClose(): file associated to descriptor \"%d\" closed successfully\n", fileDescriptor)
+
+// 	return nil
+// }
 
 // Tries to read len(buffer) bytes from the file pointed by fileDescriptor
 func PfsRead(fileDescriptor int, buffer []byte) (int, error) {
@@ -215,12 +223,7 @@ func PfsWrite(fileDescriptor int, buffer []byte) (int, error) {
 }
 
 // Changes the offset of the file for the next read/write and returns the new offset
-func PfsLseek(fileDescriptor int, offset int64, whence int) (int64, error) {
-	if fileDescriptor < 0 || fileDescriptor > globals.OpenfdsMaxSize {
-		printInvalidDescriptor(fileDescriptor, "Lseek")
-		return -1, errors.New("Invalid descriptor")
-	}
-
+func (pfsf *PfsFile) Lseek(offset int64, whence int) (int64, error) {
 	if offset < 0 {
 		printInvalidOffset(offset)
 		return -1, errors.New("Invalid offset")
@@ -231,21 +234,61 @@ func PfsLseek(fileDescriptor int, offset int64, whence int) (int64, error) {
 		return -1, errors.New("Invalid whence")
 	}
 
-	openfd := globals.Openfds[fileDescriptor]
-
 	switch whence {
 	case 0:
-		openfd.Offset = offset
+		pfsf.Offset = offset
 		break
 	case 1:
-		openfd.Offset += offset
+		pfsf.Offset += offset
 		break
 	case 2:
-		globals.Openfds[fileDescriptor].Offset = getFileSize(fileDescriptor) + offset
+		pfsf.Offset = pfsf.getSize() + offset
 		break
 	}
 
-	log.Default().Printf("[pfslib]: PfsLseek(): offset of file associated to descriptor \"%d\" is now set to \"%d\"\n", fileDescriptor, openfd.Offset)
+	log.Default().Printf("[pfslib]: PfsLseek(): offset is now set to \"%d\"\n", pfsf.Offset)
 
-	return openfd.Offset, nil
+	return pfsf.Offset, nil
 }
+
+func (pfsf *PfsFile) getSize() int64 {
+	minioObjectInfo, err := storeClient.StatObject(context.Background(), globals.MinioBucket, pfsf.Uuid, minio.StatObjectOptions{})
+	utils.CheckError(err)
+
+	return minioObjectInfo.Size
+}
+
+// func PfsLseek(fileDescriptor int, offset int64, whence int) (int64, error) {
+// 	if fileDescriptor < 0 || fileDescriptor > globals.OpenfdsMaxSize {
+// 		printInvalidDescriptor(fileDescriptor, "Lseek")
+// 		return -1, errors.New("Invalid descriptor")
+// 	}
+
+// 	if offset < 0 {
+// 		printInvalidOffset(offset)
+// 		return -1, errors.New("Invalid offset")
+// 	}
+
+// 	if whence < 0 || whence > 2 {
+// 		printInvalidWhence(whence)
+// 		return -1, errors.New("Invalid whence")
+// 	}
+
+// 	openfd := globals.Openfds[fileDescriptor]
+
+// 	switch whence {
+// 	case 0:
+// 		openfd.Offset = offset
+// 		break
+// 	case 1:
+// 		openfd.Offset += offset
+// 		break
+// 	case 2:
+// 		globals.Openfds[fileDescriptor].Offset = getFileSize(fileDescriptor) + offset
+// 		break
+// 	}
+
+// 	log.Default().Printf("[pfslib]: PfsLseek(): offset of file associated to descriptor \"%d\" is now set to \"%d\"\n", fileDescriptor, openfd.Offset)
+
+// 	return openfd.Offset, nil
+// }
