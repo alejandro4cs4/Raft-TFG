@@ -1,8 +1,6 @@
 package main
 
 import (
-	"fmt"
-
 	"raft-tfg.com/alejandroc/pfslib"
 )
 
@@ -11,9 +9,9 @@ func main() {
 
 	fd, _ := pfslib.PfsOpen("/home/alejandroc/test/test.txt")
 
-	buffer := make([]byte, 100)
-	bytesRead, _ := pfslib.PfsRead(fd, buffer)
+	pfslib.PfsLseek(fd, 10, 1)
 
-	fmt.Printf("Se ha leido %d bytes\nEl contenido es:\n%s\n", bytesRead, string(buffer))
+	writeBuffer := []byte("HOLA SOY ALEJANDRO")
+	pfslib.PfsWrite(fd, writeBuffer)
 
 }

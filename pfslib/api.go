@@ -49,7 +49,6 @@ func PfsInit() {
 
 func initRoot() {
 	getResponse, err := metaClient.Get(context.Background(), RootDirectoryKey)
-
 	utils.CheckError(err)
 
 	if getResponse.Count == 1 {
@@ -60,7 +59,6 @@ func initRoot() {
 	rootValue := strings.Join([]string{TypeDirectory, rootUuid}, "_")
 
 	_, err = metaClient.Put(context.Background(), RootDirectoryKey, rootValue)
-
 	utils.CheckError(err)
 }
 
@@ -80,7 +78,6 @@ func PfsOpen(pathname string) (int, error) {
 		queryKey := strings.Join([]string{parentDirectoryUuid, mappedName}, "_")
 
 		getResponse, err := metaClient.Get(context.Background(), queryKey)
-
 		utils.CheckError(err)
 
 		if getResponse.Count == 0 {
@@ -124,17 +121,35 @@ func PfsOpen(pathname string) (int, error) {
 		Offset: 0,
 	}
 
-	fmt.Printf("File opened successfully\nOpenfds: %+v\n", globals.Openfds)
+	log.Default().Printf("[pfslib]: PfsOpen(): file \"%s\" opened successfully, file descriptor is \"%d\"\n", pathname, newFd)
 
 	// Return openfds index for the recently opened file
 	return newFd, nil
 }
 
-// Tries to read
+func PfsClose(fileDescriptor int) error {
+	if fileDescriptor < 0 || fileDescriptor > globals.OpenfdsMaxSize {
+		printInvalidDescriptor(fileDescriptor, "Close")
+		return errors.New("Invalid descriptor")
+	}
+
+	globals.Openfds[fileDescriptor] = nil
+
+	log.Default().Printf("[pfslib]: PfsClose(): file associated to descriptor \"%d\" closed successfully\n", fileDescriptor)
+
+	return nil
+}
+
+// Tries to read len(buffer) bytes from the file pointed by fileDescriptor
 func PfsRead(fileDescriptor int, buffer []byte) (int, error) {
 	if fileDescriptor < 0 || fileDescriptor > globals.OpenfdsMaxSize {
-		printReadInvalidDescriptor(fileDescriptor)
+		printInvalidDescriptor(fileDescriptor, "Read")
 		return 0, errors.New("Invalid descriptor")
+	}
+
+	if buffer == nil {
+		printInvalidBuffer("Read")
+		return -1, errors.New("Invalid buffer")
 	}
 
 	openDescriptor := globals.Openfds[fileDescriptor]
@@ -147,14 +162,90 @@ func PfsRead(fileDescriptor int, buffer []byte) (int, error) {
 	objectToReadUuid := openDescriptor.Uuid
 
 	minioObject, err := storeClient.GetObject(context.Background(), globals.MinioBucket, objectToReadUuid, minio.GetObjectOptions{})
-
 	utils.CheckError(err)
 
 	defer minioObject.Close()
 
 	bytesRead, err := minioObject.ReadAt(buffer, openDescriptor.Offset)
-
 	utils.CheckError(err)
 
+	globals.Openfds[fileDescriptor].Offset += int64(bytesRead)
+
+	log.Default().Printf("[pfslib]: PfsRead(): %d bytes successfully read from file associated to descriptor \"%d\"\n", bytesRead, fileDescriptor)
+
 	return bytesRead, nil
+}
+
+// Tries to write len(buffer) bytes to the file pointed by fileDescriptor
+func PfsWrite(fileDescriptor int, buffer []byte) (int, error) {
+	if fileDescriptor < 0 || fileDescriptor > globals.OpenfdsMaxSize {
+		printInvalidDescriptor(fileDescriptor, "Write")
+		return -1, errors.New("Invalid descriptor")
+	}
+
+	if buffer == nil {
+		printInvalidBuffer("Write")
+		return -1, errors.New("Invalid buffer")
+	}
+
+	fileOffset := globals.Openfds[fileDescriptor].Offset
+
+	minioObject, err := storeClient.GetObject(context.Background(), globals.MinioBucket, globals.Openfds[fileDescriptor].Uuid, minio.GetObjectOptions{})
+	utils.CheckError(err)
+
+	defer minioObject.Close()
+
+	minioObjectInfo, err := minioObject.Stat()
+	utils.CheckError(err)
+
+	preContentBuffer := make([]byte, fileOffset)
+	_, err = minioObject.Read(preContentBuffer)
+	utils.CheckError(err)
+
+	postContentBuffer := make([]byte, minioObjectInfo.Size-fileOffset)
+	_, err = minioObject.ReadAt(postContentBuffer, fileOffset)
+	utils.CheckError(err)
+
+	newFileContent := append(preContentBuffer[:], buffer[:]...)
+	newFileContent = append(newFileContent[:], postContentBuffer[:]...)
+
+	fmt.Printf("The new contents are:\n%s\n", string(newFileContent))
+
+	return len(buffer), nil
+}
+
+// Changes the offset of the file for the next read/write and returns the new offset
+func PfsLseek(fileDescriptor int, offset int64, whence int) (int64, error) {
+	if fileDescriptor < 0 || fileDescriptor > globals.OpenfdsMaxSize {
+		printInvalidDescriptor(fileDescriptor, "Lseek")
+		return -1, errors.New("Invalid descriptor")
+	}
+
+	if offset < 0 {
+		printInvalidOffset(offset)
+		return -1, errors.New("Invalid offset")
+	}
+
+	if whence < 0 || whence > 2 {
+		printInvalidWhence(whence)
+		return -1, errors.New("Invalid whence")
+	}
+
+	openfd := globals.Openfds[fileDescriptor]
+
+	switch whence {
+	case 0:
+		openfd.Offset = offset
+		break
+	case 1:
+		openfd.Offset += offset
+		break
+	case 2:
+		globals.Openfds[fileDescriptor].Offset = getFileSize(fileDescriptor) + offset
+		break
+	}
+
+	log.Default().Printf("[pfslib]: PfsLseek(): offset of file associated to descriptor \"%d\" is now set to \"%d\"\n", fileDescriptor, openfd.Offset)
+
+	return openfd.Offset, nil
 }
