@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log"
+	"os"
 	"strings"
 
 	"github.com/google/uuid"
@@ -257,4 +259,62 @@ func (pfsf *PfsFile) getSize() int64 {
 	utils.CheckError(err)
 
 	return minioObjectInfo.Size
+}
+
+// Tries to created the directory specified by pathname
+func PfsMkdir(pathname string, perms os.FileMode) error {
+	if pathname == "" {
+		printInvalidEmptyPathname()
+		return errors.New("Empty pathname not allowed")
+	}
+
+	absolutePath := utils.GetAbsolutePath(pathname)
+	pathComponents := strings.Split(absolutePath, "/")
+
+	if len(pathComponents) == 0 {
+		printInvalidPathname()
+		return errors.New("Invalid pathname")
+	}
+
+	parentDirectoryUuid := RootDirectoryUuid
+
+	for index, pathComponent := range pathComponents[:len(pathComponents)-1] {
+		mappedName := utils.MapRouteComponentName(pathComponent)
+		queryKey := strings.Join([]string{parentDirectoryUuid, mappedName}, "_")
+
+		getResponse, err := metaClient.Get(context.Background(), queryKey)
+		utils.CheckError(err)
+
+		// The directory already exists
+		if getResponse.Count == 0 {
+			nonCreatedDirectory := strings.Join(pathComponents[:index+1], "/")
+			errorMsg := fmt.Sprintf("The directory \"%s\" does not exist\n", nonCreatedDirectory)
+
+			printDirectoryNotCreated(errorMsg)
+			return errors.New(errorMsg)
+		}
+
+		currentDirectoryUuid := strings.Split(string(getResponse.Kvs[0].Value), "_")[1]
+		parentDirectoryUuid = currentDirectoryUuid
+	}
+
+	newDirectoryName := utils.MapRouteComponentName(pathComponents[len(pathComponents)-1])
+	newDirectoryKey := strings.Join([]string{parentDirectoryUuid, newDirectoryName}, "_")
+
+	// Check if directory already exists
+	getResponse, err := metaClient.Get(context.Background(), newDirectoryKey)
+	utils.CheckError(err)
+
+	// Directory already exists
+	if getResponse.Count == 1 {
+		return nil
+	}
+
+	newDirectoryUuid := uuid.New().String()
+	newDirectoryValue := strings.Join([]string{TypeDirectory, newDirectoryUuid}, "_")
+
+	_, err = metaClient.Put(context.Background(), newDirectoryKey, newDirectoryValue)
+	utils.CheckError(err)
+
+	return nil
 }

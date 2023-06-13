@@ -17,13 +17,26 @@ func printOpenNotRegular(absolutePath string) {
 	log.Default().Printf("[pfslib]: PfsOpen(): \"%s\" is not a regular file\n", absolutePath)
 }
 
-// PfsLseek helper functions //
+// Lseek helper functions //
 func printInvalidOffset(invalidOffset int64) {
 	log.Default().Printf("[pfslib]: Lseek(): offset \"%d\" is invalid, must be greater than 0\n", invalidOffset)
 }
 
 func printInvalidWhence(invalidWhence int) {
 	log.Default().Printf("[pfslib]: Lseek(): whence \"%d\" is invalid, check go os package to see available values\n", invalidWhence)
+}
+
+// PfsMkdir helper functions //
+func printInvalidEmptyPathname() {
+	log.Default().Println("[pfslib]: PfsMkdir(): pathname must be non empty\n")
+}
+
+func printInvalidPathname() {
+	log.Default().Println("[pfslib]: PfsMkdir(): pathname is invalid\n")
+}
+
+func printDirectoryNotCreated(errorMsg string) {
+	log.Default().Printf("[pfslib]: PfsMkdir(): %s", errorMsg)
 }
 
 // Other helper functions //
