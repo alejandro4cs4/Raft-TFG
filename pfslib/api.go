@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"log"
 	"strings"
 
@@ -235,13 +236,13 @@ func (pfsf *PfsFile) Lseek(offset int64, whence int) (int64, error) {
 	}
 
 	switch whence {
-	case 0:
+	case io.SeekStart:
 		pfsf.offset = offset
 		break
-	case 1:
+	case io.SeekCurrent:
 		pfsf.offset += offset
 		break
-	case 2:
+	case io.SeekEnd:
 		pfsf.offset = pfsf.getSize() + offset
 		break
 	}
