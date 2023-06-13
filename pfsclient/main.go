@@ -1,17 +1,19 @@
 package main
 
 import (
+	"os"
+
 	"raft-tfg.com/alejandroc/pfslib"
 )
 
 func main() {
 	pfslib.PfsInit()
 
-	fd, _ := pfslib.PfsOpen("/home/alejandroc/test/test.txt")
+	pfsFile, _ := pfslib.PfsOpen("/home/alejandroc/test/test.txt")
 
-	pfslib.PfsLseek(fd, 10, 1)
+	pfsFile.Lseek(10, os.SEEK_CUR)
 
-	writeBuffer := []byte("HOLA SOY ALEJANDRO")
-	pfslib.PfsWrite(fd, writeBuffer)
+	writeBuffer := []byte("SOY ALEALEJANDRO")
+	pfsFile.Write(writeBuffer)
 
 }

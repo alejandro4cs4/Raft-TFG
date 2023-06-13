@@ -1,9 +1,9 @@
 package pfslib
 
 import (
+	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"log"
 	"strings"
 
@@ -30,8 +30,14 @@ const (
 var metaClient *clientv3.Client
 var storeClient *minio.Client
 
+type openfd struct {
+	name   string
+	uuid   string
+	offset int64
+}
+
 type PfsFile struct {
-	*globals.Openfd
+	*openfd
 }
 
 func PfsInit() {
@@ -66,8 +72,8 @@ func initRoot() {
 	utils.CheckError(err)
 }
 
-// Tries to open the pathname file and return its associated file descriptor
-func PfsOpen(pathname string) (int, error) {
+// Tries to open the pathname file and return a PfsFile that represents it
+func PfsOpen(pathname string) (*PfsFile, error) {
 	// Solve file pathname contacting etcd
 	// - start from root (/) if absolute pathname
 	// - start from current directory if relative pathname
@@ -75,7 +81,6 @@ func PfsOpen(pathname string) (int, error) {
 	pathComponents := strings.Split(absolutePath, "/")
 	parentDirectoryUuid := RootDirectoryUuid
 	var currentComponentValue string
-	newFd := -1
 
 	for index, pathComponent := range pathComponents {
 		mappedName := utils.MapRouteComponentName(pathComponent)
@@ -87,7 +92,7 @@ func PfsOpen(pathname string) (int, error) {
 		if getResponse.Count == 0 {
 			printOpenNotFound(pathComponents[:index+1])
 
-			return -1, errors.New("No such file or directory")
+			return nil, errors.New("No such file or directory")
 		}
 
 		currentComponentValue = string(getResponse.Kvs[0].Value)
@@ -100,105 +105,73 @@ func PfsOpen(pathname string) (int, error) {
 	if lastComponentType != TypeRegular {
 		printOpenNotRegular(absolutePath)
 
-		return -1, errors.New("Not a regular file")
+		return nil, errors.New("Not a regular file")
 	}
 
 	// Get file's UUID from its etcd value
 	requestedFileUuid := strings.Split(currentComponentValue, "_")[1]
 
-	// Look for a free entry in openfds table and store the file UUID
-	for index, openfd := range globals.Openfds {
-		if openfd == nil {
-			newFd = index
-			break
-		}
+	newPfsFile := &PfsFile{
+		&openfd{
+			name:   pathComponents[len(pathComponents)-1],
+			uuid:   requestedFileUuid,
+			offset: 0,
+		},
 	}
 
-	if newFd == -1 {
-		printOpenOutOfMemory()
-		return -1, errors.New("Out of memory")
-	}
-
-	globals.Openfds[newFd] = &globals.Openfd{
-		Name:   pathComponents[len(pathComponents)-1],
-		Uuid:   requestedFileUuid,
-		Offset: 0,
-	}
-
-	log.Default().Printf("[pfslib]: PfsOpen(): file \"%s\" opened successfully, file descriptor is \"%d\"\n", pathname, newFd)
+	log.Default().Printf("[pfslib]: PfsOpen(): file \"%s\" opened successfully\n", pathname)
 
 	// Return openfds index for the recently opened file
-	return newFd, nil
+	return newPfsFile, nil
 }
 
+// Closes the PfsFile making it invalid
 func (pfsf *PfsFile) Close() error {
+	pfsf.openfd = nil
+
 	return nil
 }
 
-// func PfsClose(fileDescriptor int) error {
-// 	if fileDescriptor < 0 || fileDescriptor > globals.OpenfdsMaxSize {
-// 		printInvalidDescriptor(fileDescriptor, "Close")
-// 		return errors.New("Invalid descriptor")
-// 	}
-
-// 	globals.Openfds[fileDescriptor] = nil
-
-// 	log.Default().Printf("[pfslib]: PfsClose(): file associated to descriptor \"%d\" closed successfully\n", fileDescriptor)
-
-// 	return nil
-// }
-
-// Tries to read len(buffer) bytes from the file pointed by fileDescriptor
-func PfsRead(fileDescriptor int, buffer []byte) (int, error) {
-	if fileDescriptor < 0 || fileDescriptor > globals.OpenfdsMaxSize {
-		printInvalidDescriptor(fileDescriptor, "Read")
-		return 0, errors.New("Invalid descriptor")
+// Tries to read len(buffer) bytes from the PfsFile
+func (pfsf *PfsFile) Read(buffer []byte) (int, error) {
+	if pfsf.openfd == nil {
+		printClosedPfsFile("Read")
+		return 0, errors.New("PfsFile already closed")
 	}
 
 	if buffer == nil {
 		printInvalidBuffer("Read")
-		return -1, errors.New("Invalid buffer")
+		return 0, errors.New("Invalid buffer")
 	}
 
-	openDescriptor := globals.Openfds[fileDescriptor]
-
-	if openDescriptor == nil {
-		printReadNotOpenedDescriptor(fileDescriptor)
-		return 0, errors.New("No file associated to the specified descriptor")
-	}
-
-	objectToReadUuid := openDescriptor.Uuid
-
-	minioObject, err := storeClient.GetObject(context.Background(), globals.MinioBucket, objectToReadUuid, minio.GetObjectOptions{})
+	minioObject, err := storeClient.GetObject(context.Background(), globals.MinioBucket, pfsf.uuid, minio.GetObjectOptions{})
 	utils.CheckError(err)
 
 	defer minioObject.Close()
 
-	bytesRead, err := minioObject.ReadAt(buffer, openDescriptor.Offset)
+	bytesRead, err := minioObject.ReadAt(buffer, pfsf.offset)
 	utils.CheckError(err)
 
-	globals.Openfds[fileDescriptor].Offset += int64(bytesRead)
+	pfsf.offset += int64(bytesRead)
 
-	log.Default().Printf("[pfslib]: PfsRead(): %d bytes successfully read from file associated to descriptor \"%d\"\n", bytesRead, fileDescriptor)
+	log.Default().Printf("[pfslib]: Read(): %d bytes successfully read from the PfsFile\n", bytesRead)
 
 	return bytesRead, nil
 }
 
-// Tries to write len(buffer) bytes to the file pointed by fileDescriptor
-func PfsWrite(fileDescriptor int, buffer []byte) (int, error) {
-	if fileDescriptor < 0 || fileDescriptor > globals.OpenfdsMaxSize {
-		printInvalidDescriptor(fileDescriptor, "Write")
-		return -1, errors.New("Invalid descriptor")
+// Tries to write len(buffer) bytes to the PfsFile
+func (pfsf *PfsFile) Write(buffer []byte) (int, error) {
+	if pfsf.openfd == nil {
+		printClosedPfsFile("Write")
+		return 0, errors.New("PfsFile already closed")
 	}
 
 	if buffer == nil {
 		printInvalidBuffer("Write")
-		return -1, errors.New("Invalid buffer")
+		return 0, errors.New("Invalid buffer")
 	}
 
-	fileOffset := globals.Openfds[fileDescriptor].Offset
-
-	minioObject, err := storeClient.GetObject(context.Background(), globals.MinioBucket, globals.Openfds[fileDescriptor].Uuid, minio.GetObjectOptions{})
+	minioObject, err := storeClient.GetObject(context.Background(), globals.MinioBucket, pfsf.uuid, minio.GetObjectOptions{})
 	utils.CheckError(err)
 
 	defer minioObject.Close()
@@ -206,89 +179,81 @@ func PfsWrite(fileDescriptor int, buffer []byte) (int, error) {
 	minioObjectInfo, err := minioObject.Stat()
 	utils.CheckError(err)
 
-	preContentBuffer := make([]byte, fileOffset)
-	_, err = minioObject.Read(preContentBuffer)
-	utils.CheckError(err)
+	var preContentBufferSize int64
+	if pfsf.offset == minioObjectInfo.Size {
+		preContentBufferSize = minioObjectInfo.Size - 1
+	} else {
+		preContentBufferSize = pfsf.offset
+	}
 
-	postContentBuffer := make([]byte, minioObjectInfo.Size-fileOffset)
-	_, err = minioObject.ReadAt(postContentBuffer, fileOffset)
-	utils.CheckError(err)
+	preContentBuffer := make([]byte, preContentBufferSize)
+	if preContentBufferSize > 0 {
+		_, err = minioObject.Read(preContentBuffer)
+		utils.CheckError(err)
+	}
+
+	var postContentBufferSize int64
+	if pfsf.offset == minioObjectInfo.Size {
+		postContentBufferSize = 0
+	} else {
+		postContentBufferSize = minioObjectInfo.Size - (pfsf.offset + int64(len(buffer))) - 1
+	}
+
+	postContentBuffer := make([]byte, postContentBufferSize)
+	if postContentBufferSize > 0 {
+		_, err = minioObject.ReadAt(postContentBuffer, pfsf.offset+int64(len(buffer)))
+		utils.CheckError(err)
+	}
 
 	newFileContent := append(preContentBuffer[:], buffer[:]...)
 	newFileContent = append(newFileContent[:], postContentBuffer[:]...)
+	reader := bytes.NewReader(newFileContent)
 
-	fmt.Printf("The new contents are:\n%s\n", string(newFileContent))
+	_, err = storeClient.PutObject(context.Background(), globals.MinioBucket, pfsf.uuid, reader, int64(len(newFileContent)), minio.PutObjectOptions{})
+	utils.CheckError(err)
+
+	pfsf.offset += int64(len(buffer))
 
 	return len(buffer), nil
 }
 
-// Changes the offset of the file for the next read/write and returns the new offset
+// Changes the offset of the PfsFile for the next read/write and returns the new offset
 func (pfsf *PfsFile) Lseek(offset int64, whence int) (int64, error) {
+	if pfsf.openfd == nil {
+		printClosedPfsFile("Lseek")
+		return 0, errors.New("PfsFile already closed")
+	}
+
 	if offset < 0 {
 		printInvalidOffset(offset)
-		return -1, errors.New("Invalid offset")
+		return pfsf.offset, errors.New("Invalid offset")
 	}
 
 	if whence < 0 || whence > 2 {
 		printInvalidWhence(whence)
-		return -1, errors.New("Invalid whence")
+		return pfsf.offset, errors.New("Invalid whence")
 	}
 
 	switch whence {
 	case 0:
-		pfsf.Offset = offset
+		pfsf.offset = offset
 		break
 	case 1:
-		pfsf.Offset += offset
+		pfsf.offset += offset
 		break
 	case 2:
-		pfsf.Offset = pfsf.getSize() + offset
+		pfsf.offset = pfsf.getSize() + offset
 		break
 	}
 
-	log.Default().Printf("[pfslib]: PfsLseek(): offset is now set to \"%d\"\n", pfsf.Offset)
+	log.Default().Printf("[pfslib]: PfsLseek(): offset is now set to \"%d\"\n", pfsf.offset)
 
-	return pfsf.Offset, nil
+	return pfsf.offset, nil
 }
 
 func (pfsf *PfsFile) getSize() int64 {
-	minioObjectInfo, err := storeClient.StatObject(context.Background(), globals.MinioBucket, pfsf.Uuid, minio.StatObjectOptions{})
+	minioObjectInfo, err := storeClient.StatObject(context.Background(), globals.MinioBucket, pfsf.uuid, minio.StatObjectOptions{})
 	utils.CheckError(err)
 
 	return minioObjectInfo.Size
 }
-
-// func PfsLseek(fileDescriptor int, offset int64, whence int) (int64, error) {
-// 	if fileDescriptor < 0 || fileDescriptor > globals.OpenfdsMaxSize {
-// 		printInvalidDescriptor(fileDescriptor, "Lseek")
-// 		return -1, errors.New("Invalid descriptor")
-// 	}
-
-// 	if offset < 0 {
-// 		printInvalidOffset(offset)
-// 		return -1, errors.New("Invalid offset")
-// 	}
-
-// 	if whence < 0 || whence > 2 {
-// 		printInvalidWhence(whence)
-// 		return -1, errors.New("Invalid whence")
-// 	}
-
-// 	openfd := globals.Openfds[fileDescriptor]
-
-// 	switch whence {
-// 	case 0:
-// 		openfd.Offset = offset
-// 		break
-// 	case 1:
-// 		openfd.Offset += offset
-// 		break
-// 	case 2:
-// 		globals.Openfds[fileDescriptor].Offset = getFileSize(fileDescriptor) + offset
-// 		break
-// 	}
-
-// 	log.Default().Printf("[pfslib]: PfsLseek(): offset of file associated to descriptor \"%d\" is now set to \"%d\"\n", fileDescriptor, openfd.Offset)
-
-// 	return openfd.Offset, nil
-// }

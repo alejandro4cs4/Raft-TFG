@@ -5,9 +5,7 @@ import (
 )
 
 const (
-	OpenfdsMaxSize int    = 128
-	MinioBucket    string = "testbucket"
+	MinioBucket string = "testbucket"
 )
 
 var PfsSettings settings.PfsSettings
-var Openfds [OpenfdsMaxSize]*Openfd
