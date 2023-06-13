@@ -3,6 +3,7 @@ go 1.20
 use (
 	./cluster-interaction_v1.0
 	./file-creator_v1.0
+	./local-directory-to-pfs
 	./pfsclient
 	./pfslib
 )

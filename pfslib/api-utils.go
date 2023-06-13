@@ -28,11 +28,11 @@ func printInvalidWhence(invalidWhence int) {
 
 // PfsMkdir helper functions //
 func printInvalidEmptyPathname() {
-	log.Default().Println("[pfslib]: PfsMkdir(): pathname must be non empty\n")
+	log.Default().Println("[pfslib]: PfsMkdir(): pathname must be non empty")
 }
 
 func printInvalidPathname() {
-	log.Default().Println("[pfslib]: PfsMkdir(): pathname is invalid\n")
+	log.Default().Println("[pfslib]: PfsMkdir(): pathname is invalid")
 }
 
 func printDirectoryNotCreated(errorMsg string) {

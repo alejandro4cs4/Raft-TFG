@@ -261,7 +261,7 @@ func (pfsf *PfsFile) getSize() int64 {
 	return minioObjectInfo.Size
 }
 
-// Tries to created the directory specified by pathname
+// Tries to create the directory specified by pathname
 func PfsMkdir(pathname string, perms os.FileMode) error {
 	if pathname == "" {
 		printInvalidEmptyPathname()
@@ -285,7 +285,7 @@ func PfsMkdir(pathname string, perms os.FileMode) error {
 		getResponse, err := metaClient.Get(context.Background(), queryKey)
 		utils.CheckError(err)
 
-		// The directory already exists
+		// The directory does not exist
 		if getResponse.Count == 0 {
 			nonCreatedDirectory := strings.Join(pathComponents[:index+1], "/")
 			errorMsg := fmt.Sprintf("The directory \"%s\" does not exist\n", nonCreatedDirectory)
@@ -315,6 +315,52 @@ func PfsMkdir(pathname string, perms os.FileMode) error {
 
 	_, err = metaClient.Put(context.Background(), newDirectoryKey, newDirectoryValue)
 	utils.CheckError(err)
+
+	return nil
+}
+
+// Tries to create the directory specified by pathname and all its parent directories
+func PfsMkdirAll(pathname string, perms os.FileMode) error {
+	if pathname == "" {
+		printInvalidEmptyPathname()
+		return errors.New("Empty pathname not allowed")
+	}
+
+	absolutePath := utils.GetAbsolutePath(pathname)
+	pathComponents := strings.Split(absolutePath, "/")
+
+	if len(pathComponents) == 0 {
+		printInvalidPathname()
+		return errors.New("Invalid pathname")
+	}
+
+	parentDirectoryUuid := RootDirectoryUuid
+
+	for index, pathComponent := range pathComponents {
+		mappedName := utils.MapRouteComponentName(pathComponent)
+		queryKey := strings.Join([]string{parentDirectoryUuid, mappedName}, "_")
+		var currentDirectoryUuid string
+
+		getResponse, err := metaClient.Get(context.Background(), queryKey)
+		utils.CheckError(err)
+
+		// The directory does not exist
+		if getResponse.Count == 0 {
+			newDirectoryName := utils.MapRouteComponentName(pathComponents[index])
+			newDirectoryKey := strings.Join([]string{parentDirectoryUuid, newDirectoryName}, "_")
+			newDirectoryUuid := uuid.New().String()
+			newDirectoryValue := strings.Join([]string{TypeDirectory, newDirectoryUuid}, "_")
+
+			_, err := metaClient.Put(context.Background(), newDirectoryKey, newDirectoryValue)
+			utils.CheckError(err)
+
+			currentDirectoryUuid = newDirectoryUuid
+		} else {
+			currentDirectoryUuid = strings.Split(string(getResponse.Kvs[0].Value), "_")[1]
+		}
+
+		parentDirectoryUuid = currentDirectoryUuid
+	}
 
 	return nil
 }
