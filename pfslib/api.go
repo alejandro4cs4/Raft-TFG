@@ -364,3 +364,77 @@ func PfsMkdirAll(pathname string, perms os.FileMode) error {
 
 	return nil
 }
+
+// Creates or truncates the file pointed by pathname
+func PfsCreate(pathname string) (*PfsFile, error) {
+	if pathname == "" {
+		printInvalidEmptyPathname()
+		return nil, errors.New("Empty pathname not allowed")
+	}
+
+	absolutePath := utils.GetAbsolutePath(pathname)
+	pathComponents := strings.Split(absolutePath, "/")
+
+	if len(pathComponents) == 0 {
+		printInvalidPathname()
+		return nil, errors.New("Invalid pathname")
+	}
+
+	parentDirectoryUuid := RootDirectoryUuid
+
+	for index, pathComponent := range pathComponents[:len(pathComponents)-1] {
+		mappedName := utils.MapRouteComponentName(pathComponent)
+		queryKey := strings.Join([]string{parentDirectoryUuid, mappedName}, "_")
+
+		getResponse, err := metaClient.Get(context.Background(), queryKey)
+		utils.CheckError(err)
+
+		// The directory does not exist
+		if getResponse.Count == 0 {
+			nonCreatedDirectory := strings.Join(pathComponents[:index+1], "/")
+			errorMsg := fmt.Sprintf("The directory \"%s\" does not exist\n", nonCreatedDirectory)
+
+			printDirectoryNotCreated(errorMsg)
+			return nil, errors.New(errorMsg)
+		}
+
+		currentDirectoryUuid := strings.Split(string(getResponse.Kvs[0].Value), "_")[1]
+		parentDirectoryUuid = currentDirectoryUuid
+	}
+
+	newFileName := utils.MapRouteComponentName(pathComponents[len(pathComponents)-1])
+	newFileKey := strings.Join([]string{parentDirectoryUuid, newFileName}, "_")
+
+	// Check if the file already exists
+	getResponse, err := metaClient.Get(context.Background(), newFileKey)
+	utils.CheckError(err)
+
+	// Directory already exists
+	if getResponse.Count == 1 {
+		fileValue := string(getResponse.Kvs[0].Value)
+		fileUuid := strings.Split(fileValue, "_")[1]
+
+		return &PfsFile{
+			&openfd{
+				name:   newFileName,
+				uuid:   fileUuid,
+				offset: 0,
+			},
+		}, nil
+	}
+
+	newFileUuid := uuid.New().String()
+	newFileValue := strings.Join([]string{TypeRegular, newFileUuid}, "_")
+
+	_, err = metaClient.Put(context.Background(), newFileKey, newFileValue)
+	utils.CheckError(err)
+
+	return &PfsFile{
+		&openfd{
+			name:   newFileName,
+			uuid:   newFileUuid,
+			offset: 0,
+		},
+	}, nil
+
+}
