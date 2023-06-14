@@ -365,7 +365,7 @@ func PfsMkdirAll(pathname string, perms os.FileMode) error {
 	return nil
 }
 
-// Creates or truncates the file pointed by pathname
+// Creates the file pointed by pathname in the distributed filesystem. If there is no matching file in os filesystem it will be created empty.
 func PfsCreate(pathname string) (*PfsFile, error) {
 	if pathname == "" {
 		printInvalidEmptyPathname()
@@ -404,6 +404,13 @@ func PfsCreate(pathname string) (*PfsFile, error) {
 
 	newFileName := utils.MapRouteComponentName(pathComponents[len(pathComponents)-1])
 	newFileKey := strings.Join([]string{parentDirectoryUuid, newFileName}, "_")
+	newFileContent := []byte("")
+
+	// Check if file exists in os filesystem and get its content
+	osFileContent := getOsFileContent(pathname)
+	if osFileContent != nil {
+		newFileContent = osFileContent
+	}
 
 	// Check if the file already exists
 	getResponse, err := metaClient.Get(context.Background(), newFileKey)
@@ -413,6 +420,10 @@ func PfsCreate(pathname string) (*PfsFile, error) {
 	if getResponse.Count == 1 {
 		fileValue := string(getResponse.Kvs[0].Value)
 		fileUuid := strings.Split(fileValue, "_")[1]
+
+		reader := bytes.NewReader(newFileContent)
+		_, err = storeClient.PutObject(context.Background(), globals.MinioBucket, fileUuid, reader, int64(len(newFileContent)), minio.PutObjectOptions{})
+		utils.CheckError(err)
 
 		return &PfsFile{
 			&openfd{
@@ -429,7 +440,6 @@ func PfsCreate(pathname string) (*PfsFile, error) {
 	_, err = metaClient.Put(context.Background(), newFileKey, newFileValue)
 	utils.CheckError(err)
 
-	newFileContent := []byte("")
 	reader := bytes.NewReader(newFileContent)
 	_, err = storeClient.PutObject(context.Background(), globals.MinioBucket, newFileUuid, reader, int64(len(newFileContent)), minio.PutObjectOptions{})
 	utils.CheckError(err)
@@ -442,4 +452,25 @@ func PfsCreate(pathname string) (*PfsFile, error) {
 		},
 	}, nil
 
+}
+
+func getOsFileContent(pathname string) []byte {
+	osFile, err := os.Open(pathname)
+	if err != nil {
+		return nil
+	}
+
+	osFileInfo, err := osFile.Stat()
+	if err != nil {
+		return nil
+	}
+
+	osFileSize := osFileInfo.Size()
+	osFileReadBuffer := make([]byte, osFileSize)
+	_, err = osFile.Read(osFileReadBuffer)
+	if err != nil {
+		return nil
+	}
+
+	return osFileReadBuffer
 }
