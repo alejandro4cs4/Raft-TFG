@@ -429,6 +429,11 @@ func PfsCreate(pathname string) (*PfsFile, error) {
 	_, err = metaClient.Put(context.Background(), newFileKey, newFileValue)
 	utils.CheckError(err)
 
+	newFileContent := []byte("")
+	reader := bytes.NewReader(newFileContent)
+	_, err = storeClient.PutObject(context.Background(), globals.MinioBucket, newFileUuid, reader, int64(len(newFileContent)), minio.PutObjectOptions{})
+	utils.CheckError(err)
+
 	return &PfsFile{
 		&openfd{
 			name:   newFileName,

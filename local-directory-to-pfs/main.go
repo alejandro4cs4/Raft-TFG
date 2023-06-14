@@ -21,7 +21,7 @@ func copyContainerDirectories(path string) {
 	pathComponents := strings.Split(path, "/")
 	pathComponents = pathComponents[:len(pathComponents)-1]
 
-	for index, _ := range pathComponents {
+	for index := range pathComponents {
 		directoryToCreatePath := strings.Join(pathComponents[:index+1], "/")
 
 		pfslib.PfsMkdir(directoryToCreatePath, 666)
@@ -35,8 +35,12 @@ func copyDirectory(path string) {
 	checkError(err)
 
 	for _, directoryEntry := range directoryEntries {
+		currentPath := strings.Join([]string{path, directoryEntry.Name()}, "/")
+
 		if directoryEntry.IsDir() {
-			copyDirectory(strings.Join([]string{path, directoryEntry.Name()}, "/"))
+			copyDirectory(currentPath)
+		} else if directoryEntry.Type().IsRegular() {
+			pfslib.PfsCreate(currentPath)
 		}
 	}
 }
