@@ -1,20 +1,28 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"raft-tfg.com/alejandroc/pfslib"
 )
 
-const directoryToCopy string = "/home/alejandroc/etcd"
+const directoryToCopy string = "/home/alejandroc"
 
 func main() {
 	pfslib.PfsInit()
 
+	startTime := time.Now()
+
 	pfslib.PfsMkdirAll(directoryToCopy, 666)
 
 	copyDirectory(directoryToCopy)
+
+	elapsedTime := time.Since(startTime)
+
+	fmt.Printf("It took %d milliseconds / %.2f seconds / %.2f minutes to copy \"%s\" to the pfs\n", elapsedTime.Milliseconds(), elapsedTime.Seconds(), elapsedTime.Minutes(), directoryToCopy)
 }
 
 func copyContainerDirectories(path string) {
@@ -29,6 +37,11 @@ func copyContainerDirectories(path string) {
 }
 
 func copyDirectory(path string) {
+	if path == "/home/alejandroc/etcd-cluster" || path == "/home/alejandroc/minio" {
+		fmt.Println("Hago return")
+		return
+	}
+
 	pfslib.PfsMkdir(path, 666)
 
 	directoryEntries, err := os.ReadDir(path)
