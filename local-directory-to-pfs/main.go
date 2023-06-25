@@ -9,10 +9,12 @@ import (
 	"raft-tfg.com/alejandroc/pfslib"
 )
 
-const directoryToCopy string = "/home/alejandroc"
+const directoryToCopy string = "/home/alejandroc/etcd"
 
 func main() {
 	pfslib.PfsInit()
+
+	defer pfslib.PfsEnd()
 
 	startTime := time.Now()
 

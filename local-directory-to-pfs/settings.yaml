@@ -7,5 +7,5 @@ minio:
     ip: "127.0.0.1"
     port: 9000
   credentials:
-    accessKeyId: "lFYsJId1rOpeBFpV9fyO"
-    secretAccessKey: "kf32kOuaqEkB5ULQExLldbno8Er3TKtPHpS1FQOh"
+    accessKeyId: "SOmGMHQdG0xf6BDmylne"
+    secretAccessKey: "PSUgRBhKXf7s4qhR6T7bWqn9qPSQRB1vUnZ2TUPf"

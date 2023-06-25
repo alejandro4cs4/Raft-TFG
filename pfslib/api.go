@@ -75,6 +75,10 @@ func initRoot() {
 	utils.CheckError(err)
 }
 
+func PfsEnd() {
+	metaClient.Close()
+}
+
 // Tries to open the pathname file and return a PfsFile that represents it
 func PfsOpen(pathname string) (*PfsFile, error) {
 	// Solve file pathname contacting etcd
