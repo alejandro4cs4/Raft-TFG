@@ -410,17 +410,11 @@ func PfsCreate(pathname string) (*PfsFile, error) {
 	newFileKey := strings.Join([]string{parentDirectoryUuid, newFileName}, "_")
 	newFileContent := []byte("")
 
-	// Check if file exists in os filesystem and get its content
-	osFileContent := getOsFileContent(pathname)
-	if osFileContent != nil {
-		newFileContent = osFileContent
-	}
-
 	// Check if the file already exists
 	getResponse, err := metaClient.Get(context.Background(), newFileKey)
 	utils.CheckError(err)
 
-	// Directory already exists
+	// File already exists
 	if getResponse.Count == 1 {
 		fileValue := string(getResponse.Kvs[0].Value)
 		fileUuid := strings.Split(fileValue, "_")[1]
@@ -456,25 +450,4 @@ func PfsCreate(pathname string) (*PfsFile, error) {
 		},
 	}, nil
 
-}
-
-func getOsFileContent(pathname string) []byte {
-	osFile, err := os.Open(pathname)
-	if err != nil {
-		return nil
-	}
-
-	osFileInfo, err := osFile.Stat()
-	if err != nil {
-		return nil
-	}
-
-	osFileSize := osFileInfo.Size()
-	osFileReadBuffer := make([]byte, osFileSize)
-	_, err = osFile.Read(osFileReadBuffer)
-	if err != nil {
-		return nil
-	}
-
-	return osFileReadBuffer
 }
